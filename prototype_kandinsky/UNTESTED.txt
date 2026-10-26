@@ -1,0 +1,1 @@
+This Kandinsky worker is EXPERIMENTAL source only. NOT validated on GPU. DO NOT DEPLOY OR PAY for it yet.

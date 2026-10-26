@@ -1,0 +1,35 @@
+name: Build GPU smoke container (no GPU, no Salad cost)
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'smoke/**'
+      - '.github/workflows/publish.yml'
+permissions:
+  contents: read
+  packages: write
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Sign in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Normalize registry namespace
+        run: echo "GHCR_OWNER=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
+      - name: Build and push (amd64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: smoke/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ghcr.io/${{ env.GHCR_OWNER }}/synthetic-muse-gpu-smoke:0.2
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
