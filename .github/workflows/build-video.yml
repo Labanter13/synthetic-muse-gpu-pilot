@@ -6,6 +6,10 @@ on:
     paths:
       - 'video/**'
       - '.github/workflows/build-video.yml'
+# A newer build replaces an older in-progress build rather than racing to publish the same tag.
+concurrency:
+  group: video-pilot-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
   packages: write
@@ -31,6 +35,6 @@ jobs:
           file: video/Dockerfile
           platforms: linux/amd64
           push: true
-          tags: ghcr.io/${{ env.OWNER }}/synthetic-muse-video-pilot:0.1
+          tags: ghcr.io/${{ env.OWNER }}/synthetic-muse-video-pilot:0.2
           cache-from: type=gha
           cache-to: type=gha,mode=max
