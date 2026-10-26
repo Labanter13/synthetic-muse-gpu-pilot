@@ -3,6 +3,8 @@ import json
 import os
 import shutil
 import subprocess
+import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 def probe():
@@ -32,7 +34,18 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self,fmt,*args):
         print(fmt%args,flush=True)
 
+def emit_gpu_diagnostics():
+    # Prints to standard container logs, so SSH / the browser terminal is not required.
+    for attempt in range(1, 4):
+        try:
+            print("GPU_CHECK " + json.dumps({"attempt": attempt, **probe()}, ensure_ascii=False), flush=True)
+        except Exception as exc:
+            print("GPU_CHECK_ERROR " + str(exc), flush=True)
+        if attempt != 3:
+            time.sleep(10)
+
 if __name__=='__main__':
     port=int(os.environ.get('PORT','8000'))
     print('GPU smoke server listening on port',port,flush=True)
+    threading.Thread(target=emit_gpu_diagnostics, daemon=True).start()
     ThreadingHTTPServer(('0.0.0.0',port),Handler).serve_forever()
