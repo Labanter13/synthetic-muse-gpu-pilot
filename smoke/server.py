@@ -47,5 +47,12 @@ def emit_gpu_diagnostics():
 if __name__=='__main__':
     port=int(os.environ.get('PORT','8000'))
     print('GPU smoke server listening on port',port,flush=True)
-    threading.Thread(target=emit_gpu_diagnostics, daemon=True).start()
+    # Run one bounded GPU check synchronously before accepting traffic.
+    # This guarantees a diagnostic log even if background-thread logs are lost.
+    print("GPU_CHECK_START version=0.4", flush=True)
+    try:
+        print("GPU_CHECK " + json.dumps({"attempt": 1, **probe()}, ensure_ascii=False), flush=True)
+    except Exception as exc:
+        print("GPU_CHECK_ERROR " + repr(exc), flush=True)
+    print("GPU_CHECK_DONE version=0.4", flush=True)
     ThreadingHTTPServer(('0.0.0.0',port),Handler).serve_forever()
