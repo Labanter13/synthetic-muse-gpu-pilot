@@ -7,6 +7,7 @@ RUN python3 -m pip install --upgrade pip && python3 -m pip install torch==2.5.1 
 COPY video/requirements.txt /app/requirements.txt
 RUN python3 -m pip install -r /app/requirements.txt
 COPY video/server.py /app/server.py
+COPY video/index.html /app/index.html
 ENV PORT=8000 HF_HOME=/tmp/huggingface MODEL_ID=stabilityai/stable-video-diffusion-img2vid
 EXPOSE 8000
 CMD ["python3", "-u", "/app/server.py"]
