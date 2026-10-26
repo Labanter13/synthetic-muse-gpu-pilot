@@ -1,0 +1,11 @@
+diffusers==0.33.1
+transformers==4.49.0
+accelerate==1.5.2
+huggingface_hub==0.30.2
+safetensors==0.5.3
+fastapi==0.115.12
+uvicorn==0.34.2
+python-multipart==0.0.20
+pillow==11.2.1
+imageio==2.37.0
+imageio-ffmpeg==0.6.0
