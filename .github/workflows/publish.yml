@@ -30,6 +30,6 @@ jobs:
           file: smoke/Dockerfile
           platforms: linux/amd64
           push: true
-          tags: ghcr.io/${{ env.GHCR_OWNER }}/synthetic-muse-gpu-smoke:0.3
+          tags: ghcr.io/${{ env.GHCR_OWNER }}/synthetic-muse-gpu-smoke:0.4
           cache-from: type=gha
           cache-to: type=gha,mode=max
