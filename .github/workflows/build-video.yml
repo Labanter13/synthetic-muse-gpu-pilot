@@ -1,0 +1,36 @@
+name: Build experimental image-to-video container (no GPU)
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'video/**'
+      - '.github/workflows/build-video.yml'
+permissions:
+  contents: read
+  packages: write
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Lowercase owner
+        run: echo "OWNER=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
+      - name: Build and publish Linux AMD64
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: video/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ghcr.io/${{ env.OWNER }}/synthetic-muse-video-pilot:0.1
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
