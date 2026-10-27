@@ -46,6 +46,40 @@ def update(**kwargs):
         STATE.update(kwargs)
     LOG.info("KANDINSKY_STAGE %s", json.dumps({k: v for k, v in kwargs.items() if k != "video_path"}))
 
+def monitor_model_cache(done: threading.Event, started: float):
+    """Bounded, read-only download progress logs; no secrets or model contents exposed."""
+    cache = Path(os.environ.get("HF_HOME", "/tmp/huggingface"))
+    previous_mb = None
+    while not done.is_set():
+        files = 0
+        total_bytes = 0
+        try:
+            # Count actual files rather than assuming the checkpoint's advertised size.
+            # The Hugging Face cache can also include partially downloaded .incomplete files.
+            for base, _, names in os.walk(cache):
+                for name in names:
+                    path = os.path.join(base, name)
+                    if not os.path.islink(path):
+                        try:
+                            total_bytes += os.stat(path).st_size
+                            files += 1
+                        except OSError:
+                            continue
+            cache_mb = total_bytes / (1024 ** 2)
+            free_gb = shutil.disk_usage("/tmp").free / (1024 ** 3)
+            delta = None if previous_mb is None else round(cache_mb - previous_mb, 1)
+            LOG.info(
+                "KANDINSKY_DOWNLOAD_PROGRESS elapsed_sec=%d cache_mb=%.1f delta_mb=%s "
+                "files=%d free_disk_gb=%.1f",
+                int(time.monotonic() - started), cache_mb, delta,
+                files, free_gb
+            )
+            previous_mb = cache_mb
+        except Exception:
+            LOG.exception("KANDINSKY_DOWNLOAD_PROGRESS probe_failed")
+        done.wait(60)
+
+
 def get_pipe():
     global PIPE
     if PIPE is None:
@@ -58,11 +92,17 @@ def get_pipe():
             raise RuntimeError(f"Insufficient free disk ({free_gb:.1f} GB); need at least 40 GB for model download/cache")
         LOG.info("KANDINSKY_STAGE model_download_begin model=%s free_disk_gb=%.1f", MODEL_ID, free_gb)
         t0 = time.monotonic()
-        pipe = Kandinsky6TI2VAPipeline.from_pretrained(MODEL_ID, torch_dtype=torch.bfloat16)
-        pipe.enable_model_cpu_offload()
-        pipe.vae.enable_tiling()
-        PIPE = pipe
-        LOG.info("KANDINSKY_STAGE model_ready seconds=%.1f", time.monotonic()-t0)
+        finish_monitor = threading.Event()
+        telemetry = threading.Thread(target=monitor_model_cache, args=(finish_monitor, t0), daemon=True)
+        telemetry.start()
+        try:
+            pipe = Kandinsky6TI2VAPipeline.from_pretrained(MODEL_ID, torch_dtype=torch.bfloat16)
+            pipe.enable_model_cpu_offload()
+            pipe.vae.enable_tiling()
+            PIPE = pipe
+            LOG.info("KANDINSKY_STAGE model_ready seconds=%.1f", time.monotonic()-t0)
+        finally:
+            finish_monitor.set()
     return PIPE
 
 def work(job_id: str, photo: bytes, prompt: str, seed: int):
