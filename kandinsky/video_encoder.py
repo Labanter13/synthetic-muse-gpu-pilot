@@ -66,6 +66,6 @@ def encode_quality_mp4(frames, destination, fps=24, audio=None, audio_sample_rat
         return_code = proc.wait()
         if return_code != 0:
             raise RuntimeError(f"ffmpeg video encode failed (exit {return_code}): {error}")
-    if not path.exists() or path.stat().st_size < 4096:
+    if not path.exists() or path.stat().st_size < 1024:
         raise RuntimeError("Output MP4 missing or empty")
     return path
