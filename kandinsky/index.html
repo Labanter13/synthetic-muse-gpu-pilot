@@ -8,10 +8,11 @@ textarea{resize:vertical}input[type=file]{cursor:pointer}button{border:0;backgro
 button:disabled{opacity:.5}pre{background:#222c3c;padding:17px;border-radius:8px;white-space:pre-wrap;overflow-wrap:anywhere}small{color:#afbdce}
 </style></head><body>
 <h1>Synthetic Muse — Kandinsky 6</h1>
-<p>Experimental image-to-video, 5 seconds, portrait 480 × 864, 24 fps, no audio. One job at a time. Private access key required for generation and download.</p>
+<p>Experimental image-to-video, 5 seconds, portrait 480 × 864, 24 fps, optional synchronized audio. One job at a time. Private access key required for generation and download.</p>
 <label>Private API key</label><input id="key" type="password" autocomplete="off" placeholder="PILOT_API_KEY">
 <label>Emma reference image (JPEG / PNG, max 8 MB)</label><input id="photo" type="file" accept="image/jpeg,image/png">
-<label>Motion prompt</label><textarea id="prompt" rows="4">A young adult woman looks toward the camera, blinks naturally, turns her head slightly and smiles gently. Subtle breathing, realistic hair movement. Static camera and background. Preserve the same face and appearance.</textarea>
+<label>Motion prompt</label><textarea id="prompt" rows="4">A young adult woman faces the camera in a steady, photorealistic close-up. She smiles softly, blinks naturally, and says clearly in Greek: <S>Καλησπέρα Λάμπρο.<E> Her lips move naturally and accurately with the spoken words, with minimal head movement and no exaggerated expressions. Preserve exactly the same face, teeth, clothing, hairstyle, and background as the reference image. The camera is static. <AUDCAP>A natural, friendly adult female voice speaking Greek clearly at a calm pace. Quiet room ambience, no music, no other speech.<ENDAUDCAP></textarea>
+<label style="display:flex;align-items:center;gap:10px"><input id="audio" type="checkbox" checked style="width:auto;display:inline"> Generate synchronized sound / speech</label>
 <label>Seed</label><input id="seed" type="number" min="0" max="2147483647" value="42">
 <p><button id="generate">Generate 5-second video</button></p><pre id="status">Check /health, enter your private key, choose the reference image and start one job.</pre>
 <p><button id="download" hidden>Download MP4</button></p><small>Model weights are downloaded when the first job begins and are not persistent on SaladCloud. Download the MP4 before stopping the container.</small>
@@ -33,7 +34,7 @@ async function poll(){
 $('generate').onclick=async()=>{
   if(!k()||!$('photo').files.length){$('status').textContent="Provide key and photo first";return;}
   $('generate').disabled=true;$('download').hidden=true;
-  const f=new FormData();f.append('image',$('photo').files[0]);f.append('prompt',$('prompt').value);f.append('seed',$('seed').value);
+  const f=new FormData();f.append('image',$('photo').files[0]);f.append('prompt',$('prompt').value);f.append('seed',$('seed').value);f.append('with_audio',$('audio').checked?'true':'false');
   try{
     const r=await fetch('/generate',{method:'POST',headers:{'x-api-key':k()},body:f});
     const j=await r.json();
