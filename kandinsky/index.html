@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Synthetic Muse | Kandinsky 6</title><style>
+body{font:16px system-ui,sans-serif;background:#10141c;color:#edf0f5;max-width:720px;padding:28px;margin:auto}
+h1{font-size:28px}p,.muted{color:#aebbd0}label{display:block;margin:18px 0 7px}
+textarea,input{display:block;width:100%;box-sizing:border-box;background:#212b3b;color:white;border:1px solid #4e5c6f;border-radius:8px;padding:12px;font:inherit}
+textarea{resize:vertical}input[type=file]{cursor:pointer}button{border:0;background:#34baa0;color:#032f29;font-weight:700;font-size:16px;border-radius:8px;padding:14px 19px;cursor:pointer}
+button:disabled{opacity:.5}pre{background:#222c3c;padding:17px;border-radius:8px;white-space:pre-wrap;overflow-wrap:anywhere}small{color:#afbdce}
+</style></head><body>
+<h1>Synthetic Muse — Kandinsky 6</h1>
+<p>Experimental image-to-video, 5 seconds, portrait 480 × 864, 24 fps, no audio. One job at a time. Private access key required for generation and download.</p>
+<label>Private API key</label><input id="key" type="password" autocomplete="off" placeholder="PILOT_API_KEY">
+<label>Emma reference image (JPEG / PNG, max 8 MB)</label><input id="photo" type="file" accept="image/jpeg,image/png">
+<label>Motion prompt</label><textarea id="prompt" rows="4">A young adult woman looks toward the camera, blinks naturally, turns her head slightly and smiles gently. Subtle breathing, realistic hair movement. Static camera and background. Preserve the same face and appearance.</textarea>
+<label>Seed</label><input id="seed" type="number" min="0" max="2147483647" value="42">
+<p><button id="generate">Generate 5-second video</button></p><pre id="status">Check /health, enter your private key, choose the reference image and start one job.</pre>
+<p><button id="download" hidden>Download MP4</button></p><small>Model weights are downloaded when the first job begins and are not persistent on SaladCloud. Download the MP4 before stopping the container.</small>
+<script>
+const $=id=>document.getElementById(id), k=()=>$('key').value;
+let currentJob=null,loop=null;
+async function poll(){
+  try{
+    const r=await fetch('/job',{headers:{'x-api-key':k()},cache:'no-store'});
+    const j=await r.json();
+    $('status').textContent=JSON.stringify(j,null,2);
+    if(!r.ok)throw Error(j.detail||r.status);
+    if(j.status==='completed'||j.status==='failed'){
+      clearInterval(loop);loop=null;$('generate').disabled=false;
+      if(j.status==='completed'){$('download').hidden=false;currentJob=j.job_id;}
+    }
+  }catch(e){clearInterval(loop);loop=null;$('status').textContent=String(e);$('generate').disabled=false;}
+}
+$('generate').onclick=async()=>{
+  if(!k()||!$('photo').files.length){$('status').textContent="Provide key and photo first";return;}
+  $('generate').disabled=true;$('download').hidden=true;
+  const f=new FormData();f.append('image',$('photo').files[0]);f.append('prompt',$('prompt').value);f.append('seed',$('seed').value);
+  try{
+    const r=await fetch('/generate',{method:'POST',headers:{'x-api-key':k()},body:f});
+    const j=await r.json();
+    if(!r.ok)throw Error(j.detail||r.status);
+    $('status').textContent=JSON.stringify(j,null,2);clearInterval(loop);loop=setInterval(poll,5000);
+  }catch(e){$('status').textContent=String(e);$('generate').disabled=false;}
+};
+$('download').onclick=async()=>{
+  try{
+    const r=await fetch('/download/'+currentJob,{headers:{'x-api-key':k()}});
+    if(!r.ok)throw Error(await r.text());
+    const url=URL.createObjectURL(await r.blob());const a=document.createElement('a');
+    a.href=url;a.download='synthetic-muse-kandinsky-test.mp4';a.click();
+    setTimeout(()=>URL.revokeObjectURL(url),60000);
+  }catch(e){$('status').textContent=String(e);}
+};
+</script></body></html>
