@@ -109,7 +109,7 @@ def work(job_id: str, photo: bytes, prompt: str, seed: int, with_audio: bool):
     t0 = time.monotonic()
     try:
         import torch
-        from diffusers.utils import encode_video, export_to_video
+        from video_encoder import encode_quality_mp4
         update(status="running", stage="loading_model")
         pipe = get_pipe()
         with Image.open(io.BytesIO(photo)) as original:
@@ -133,17 +133,13 @@ def work(job_id: str, photo: bytes, prompt: str, seed: int, with_audio: bool):
         destination = OUT / f"{job_id}.mp4"
         if with_audio:
             if result.audio is None:
-                raise RuntimeError("Kandinsky returned no audio even though audio generation was enabled")
-            # Kandinsky returns mono waveforms: encode_video muxes audio with video in one MP4.
-            waveform = torch.as_tensor(result.audio[0], dtype=torch.float32).reshape(1, -1).cpu()
-            if waveform.numel() == 0:
-                raise RuntimeError("Kandinsky returned an empty audio waveform")
-            encode_video(result.frames[0], fps=24, output_path=str(destination),
-                         audio=waveform, audio_sample_rate=pipe.audio_sample_rate)
-            LOG.info("KANDINSKY_STAGE audio_encoded samples=%s rate=%s",
-                     waveform.shape[-1], pipe.audio_sample_rate)
+                raise RuntimeError("Kandinsky returned no audio despite audio generation being enabled")
+            encode_quality_mp4(result.frames[0], destination, fps=24,
+                               audio=result.audio[0], audio_sample_rate=pipe.audio_sample_rate)
         else:
-            export_to_video(result.frames[0], str(destination), fps=24)
+            encode_quality_mp4(result.frames[0], destination, fps=24)
+        LOG.info("KANDINSKY_STAGE high_quality_mp4_encoded audio=%s size_bytes=%s",
+                 with_audio, destination.stat().st_size)
         if not destination.exists() or destination.stat().st_size < 4096:
             raise RuntimeError("MP4 encoder returned an empty or invalid file")
         duration = round(time.monotonic()-t0, 1)

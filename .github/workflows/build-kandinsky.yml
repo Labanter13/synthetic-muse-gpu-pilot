@@ -34,6 +34,6 @@ jobs:
           file: kandinsky/Dockerfile
           platforms: linux/amd64
           push: true
-          tags: ghcr.io/${{ env.OWNER }}/synthetic-muse-kandinsky-pilot:0.3
+          tags: ghcr.io/${{ env.OWNER }}/synthetic-muse-kandinsky-pilot:0.4
           cache-from: type=gha
           cache-to: type=gha,mode=max
