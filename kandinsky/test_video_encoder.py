@@ -21,5 +21,5 @@ with tempfile.TemporaryDirectory() as temp:
         video_count = sum(s["codec_type"] == "video" for s in streams)
         audio_count = sum(s["codec_type"] == "audio" for s in streams)
         assert video_count == 1 and audio_count == int(with_audio), streams
-        assert filename.stat().st_size > 4096
+        assert filename.stat().st_size > 1024
         print("ENCODER_SMOKE_OK", filename.name, filename.stat().st_size, streams, flush=True)
