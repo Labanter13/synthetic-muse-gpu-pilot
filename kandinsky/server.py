@@ -105,17 +105,17 @@ def get_pipe():
             finish_monitor.set()
     return PIPE
 
-def work(job_id: str, photo: bytes, prompt: str, seed: int):
+def work(job_id: str, photo: bytes, prompt: str, seed: int, with_audio: bool):
     t0 = time.monotonic()
     try:
         import torch
-        from diffusers.utils import export_to_video
+        from diffusers.utils import encode_video, export_to_video
         update(status="running", stage="loading_model")
         pipe = get_pipe()
         with Image.open(io.BytesIO(photo)) as original:
             portrait = ImageOps.fit(ImageOps.exif_transpose(original).convert("RGB"),
                                     (480, 864), method=Image.Resampling.LANCZOS)
-        LOG.info("KANDINSKY_STAGE input_ready width=480 height=864 steps=10 seed=%s", seed)
+        LOG.info("KANDINSKY_STAGE input_ready width=480 height=864 steps=10 seed=%s audio=%s", seed, with_audio)
         update(stage="generating")
         result = pipe(
             prompt=prompt,
@@ -125,13 +125,25 @@ def work(job_id: str, photo: bytes, prompt: str, seed: int):
             num_frames=121,
             num_inference_steps=10,
             guidance_scale=1.0,
-            sample_audio=False,
+            sample_audio=with_audio,
             expand_prompts=False,
             generator=torch.Generator(device="cpu").manual_seed(seed),
         )
         update(stage="encoding_mp4")
         destination = OUT / f"{job_id}.mp4"
-        export_to_video(result.frames[0], str(destination), fps=24)
+        if with_audio:
+            if result.audio is None:
+                raise RuntimeError("Kandinsky returned no audio even though audio generation was enabled")
+            # Kandinsky returns mono waveforms: encode_video muxes audio with video in one MP4.
+            waveform = torch.as_tensor(result.audio[0], dtype=torch.float32).reshape(1, -1).cpu()
+            if waveform.numel() == 0:
+                raise RuntimeError("Kandinsky returned an empty audio waveform")
+            encode_video(result.frames[0], fps=24, output_path=str(destination),
+                         audio=waveform, audio_sample_rate=pipe.audio_sample_rate)
+            LOG.info("KANDINSKY_STAGE audio_encoded samples=%s rate=%s",
+                     waveform.shape[-1], pipe.audio_sample_rate)
+        else:
+            export_to_video(result.frames[0], str(destination), fps=24)
         if not destination.exists() or destination.stat().st_size < 4096:
             raise RuntimeError("MP4 encoder returned an empty or invalid file")
         duration = round(time.monotonic()-t0, 1)
@@ -167,6 +179,7 @@ def job(x_api_key: str = Header(default="")):
 @app.post("/generate")
 async def generate(image: UploadFile = File(...),
                    prompt: str = Form(...), seed: int = Form(42),
+                   with_audio: bool = Form(True),
                    x_api_key: str = Header(default="")):
     auth(x_api_key)
     if not 10 <= len(prompt) <= 1500:
@@ -185,10 +198,10 @@ async def generate(image: UploadFile = File(...),
         if STATE["status"] in ("queued", "running"):
             raise HTTPException(409, "Another generation is already running")
         new_id = secrets.token_hex(8)
-        STATE.update(job_id=new_id, status="queued", stage="queued",
+        STATE.update(job_id=new_id, status="queued", stage="queued", with_audio=with_audio,
                      error=None, elapsed_seconds=None,
                      video_path=None, started_at=time.time())
-    threading.Thread(target=work, args=(new_id, raw, prompt, seed),
+    threading.Thread(target=work, args=(new_id, raw, prompt, seed, with_audio),
                      daemon=True).start()
     return {"job_id": new_id, "status": "queued"}
 
